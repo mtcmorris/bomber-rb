@@ -36,6 +36,7 @@ class WebServer < Sinatra::Base
             blast_radius: bomb[:blast_radius]
           }
         end,
+        explosions: game.explosions,
         grid: game.grid,
         game_over: game.game_over,
         winner: game.winner

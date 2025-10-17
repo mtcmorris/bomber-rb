@@ -34,7 +34,6 @@ Each turn, your bot can perform ONE action:
 When soft walls are destroyed, they may reveal powerups:
 - `B` - Extra bomb (allows you to place one additional bomb at a time)
 - `F` - Increased blast radius (+1 range)
-- `S` - Speed boost (move twice per turn for 10 turns)
 
 ### Winning
 
@@ -64,16 +63,14 @@ Each turn, your bot receives a JSON object via STDIN:
       "y": 1,
       "alive": true,
       "bombs_available": 1,
-      "blast_radius": 2,
-      "speed_boost_turns": 0
+      "blast_radius": 2
     },
     "player2": {
       "x": 13,
       "y": 13,
       "alive": true,
       "bombs_available": 1,
-      "blast_radius": 2,
-      "speed_boost_turns": 0
+      "blast_radius": 2
     }
   },
   "bombs": [

@@ -55,7 +55,6 @@
         .cell.soft-wall { background-color: #8B4513; color: white; }
         .cell.powerup-bomb { background-color: #FFD700; color: #333; }
         .cell.powerup-fire { background-color: #FF4500; color: white; }
-        .cell.powerup-speed { background-color: #00FF00; color: #333; }
         
         .player {
             background-color: #4CAF50;
@@ -287,10 +286,6 @@
                                 cell.className += ' powerup-fire';
                                 cell.textContent = 'F';
                                 break;
-                            case 'S':
-                                cell.className += ' powerup-speed';
-                                cell.textContent = 'S';
-                                break;
                             default:
                                 cell.className += ' empty';
                                 break;
@@ -316,8 +311,7 @@
                     Position: (${player.x}, ${player.y})<br>
                     Status: ${player.alive ? 'Alive' : 'Dead'}<br>
                     Bombs: ${player.bombs_available}<br>
-                    Blast Radius: ${player.blast_radius}<br>
-                    Speed Boost: ${player.speed_boost_turns > 0 ? player.speed_boost_turns + ' turns' : 'None'}
+                    Blast Radius: ${player.blast_radius}
                 `;
                 
                 playersElement.appendChild(playerDiv);
