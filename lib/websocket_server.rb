@@ -43,28 +43,13 @@ class WebSocketServer
   def handle_open(ws, handshake)
     puts "Client connected: #{ws.object_id}"
     
-    player_id = "player#{@clients.length + 1}"
-    
-    spawn_positions = [[1, 1], [13, 13], [1, 13], [13, 1]]
-    spawn_x, spawn_y = spawn_positions[@clients.length % spawn_positions.length]
-    
-    if @game.add_player(player_id, spawn_x, spawn_y)
-      @clients[ws] = {
-        player_id: player_id,
-        last_action: nil,
-        action_received: false
-      }
-      
-      send_to_client(ws, {
-        type: 'connected',
-        player_id: player_id,
-        message: "Connected as #{player_id}"
-      })
-      
-      broadcast_game_state
-    else
-      ws.close_connection
-    end
+    @clients[ws] = {
+      player_id: nil,
+      name: nil,
+      last_action: nil,
+      action_received: false,
+      waiting_for_name: true
+    }
   end
   
   def handle_message(ws, message)
@@ -75,10 +60,36 @@ class WebSocketServer
       return unless client
       
       case data['type']
+      when 'connect'
+        if client[:waiting_for_name]
+          name = data['name'] || 'Unknown'
+          player_id = "#{name}_#{@clients.length}"
+          
+          if @game.add_player(player_id)
+            client[:player_id] = player_id
+            client[:name] = name
+            client[:waiting_for_name] = false
+            
+            puts "Player '#{name}' joined as #{player_id}"
+            
+            send_to_client(ws, {
+              type: 'connected',
+              player_id: player_id,
+              name: name,
+              message: "Connected as #{name} (#{player_id})"
+            })
+            
+            broadcast_game_state
+          else
+            ws.close_connection
+          end
+        end
       when 'action'
-        client[:last_action] = data['action']
-        client[:action_received] = true
-        puts "Received action from #{client[:player_id]}: #{data['action']}"
+        unless client[:waiting_for_name]
+          client[:last_action] = data['action']
+          client[:action_received] = true
+          puts "Received action from #{client[:name]} (#{client[:player_id]}): #{data['action']}"
+        end
       when 'ping'
         send_to_client(ws, { type: 'pong' })
       end
@@ -89,8 +100,8 @@ class WebSocketServer
   
   def handle_close(ws)
     client = @clients.delete(ws)
-    if client
-      puts "Client disconnected: #{client[:player_id]}"
+    if client && client[:player_id]
+      puts "Player '#{client[:name]}' (#{client[:player_id]}) disconnected"
       @game.players.delete(client[:player_id])
       broadcast_game_state
     end
@@ -109,18 +120,18 @@ class WebSocketServer
   end
   
   def start_game_loop
-    @game_timer = EventMachine::PeriodicTimer.new(2.0) do
+    @game_timer = EventMachine::PeriodicTimer.new(1.0) do
       process_turn
     end
   end
   
   def process_turn
-    return if @game.game_over
-    
     puts "Processing turn #{@game.tick + 1}..."
     
     # Process actions for all connected clients
     @clients.each do |ws, client|
+      next if client[:waiting_for_name]
+      
       player = @game.players[client[:player_id]]
       next unless player&.dig(:alive)
       
@@ -129,9 +140,9 @@ class WebSocketServer
       if action && action != 'pass'
         success = @game.process_action(client[:player_id], action)
         if success
-          puts "#{client[:player_id]}: #{action}"
+          puts "#{client[:name]} (#{client[:player_id]}): #{action}"
         else
-          puts "Invalid action from #{client[:player_id]}: #{action}"
+          puts "Invalid action from #{client[:name]} (#{client[:player_id]}): #{action}"
         end
       end
       
@@ -146,17 +157,5 @@ class WebSocketServer
     
     # Send updated state to all clients
     broadcast_game_state
-    
-    # Check if game is over
-    if @game.game_over
-      broadcast({
-        type: 'game_over',
-        winner: @game.winner,
-        final_state: @game.state_for_player(@clients.values.first&.dig(:player_id) || 'player1')
-      })
-      
-      @game_timer.cancel if @game_timer
-      puts "Game over! Winner: #{@game.winner || 'Draw'}"
-    end
   end
 end

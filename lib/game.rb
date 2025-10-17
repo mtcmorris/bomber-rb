@@ -5,7 +5,7 @@ class Game
   BOMB_TIMER = 3
   BLAST_RADIUS = 2
   
-  attr_reader :grid, :players, :bombs, :tick, :powerups, :game_over, :winner
+  attr_reader :grid, :players, :bombs, :tick, :powerups, :game_over, :winner, :leaderboard
   
   def initialize
     @grid = generate_grid
@@ -15,11 +15,21 @@ class Game
     @tick = 0
     @game_over = false
     @winner = nil
+    @leaderboard = {}
+    @respawn_queue = []
   end
   
-  def add_player(id, x = 1, y = 1)
+  def add_player(id, x = nil, y = nil)
     return false if @players.key?(id)
-    return false unless valid_position?(x, y) && @grid[y][x] == '.'
+    
+    # Find random spawn position if not provided
+    if x.nil? || y.nil?
+      spawn_pos = find_random_spawn_position
+      return false unless spawn_pos
+      x, y = spawn_pos
+    else
+      return false unless valid_position?(x, y) && @grid[y][x] == '.'
+    end
     
     @players[id] = {
       x: x,
@@ -27,8 +37,18 @@ class Game
       alive: true,
       bombs_available: 1,
       blast_radius: BLAST_RADIUS,
-      speed_boost_turns: 0
+      speed_boost_turns: 0,
+      spawn_time: @tick
     }
+    
+    # Initialize leaderboard entry
+    @leaderboard[id] ||= {
+      kills: 0,
+      deaths: 0,
+      total_survival_time: 0,
+      current_life_start: @tick
+    }
+    
     true
   end
   
@@ -58,7 +78,7 @@ class Game
     process_bombs
     check_explosions
     check_powerup_collection
-    check_game_over
+    process_respawns
     
     @tick
   end
@@ -181,6 +201,7 @@ class Game
   
   def explode_bomb(bomb)
     explosion_coords = calculate_explosion(bomb[:x], bomb[:y], bomb[:blast_radius])
+    killed_players = []
     
     explosion_coords.each do |x, y|
       if @grid[y][x] == '+'
@@ -191,6 +212,17 @@ class Game
       @players.each do |player_id, player|
         if player[:x] == x && player[:y] == y && player[:alive]
           player[:alive] = false
+          killed_players << player_id
+          
+          # Update leaderboard for killed player
+          @leaderboard[player_id][:deaths] += 1
+          @leaderboard[player_id][:total_survival_time] += @tick - @leaderboard[player_id][:current_life_start]
+          
+          # Queue for respawn in 5 seconds
+          @respawn_queue << {
+            player_id: player_id,
+            respawn_tick: @tick + 5
+          }
         end
       end
       
@@ -199,6 +231,11 @@ class Game
         explode_bomb(chain_bomb) if chain_bomb[:timer] > 0
         chain_bomb[:timer] = 0
       end
+    end
+    
+    # Award kill to bomb owner
+    if killed_players.length > 0 && @leaderboard[bomb[:owner]]
+      @leaderboard[bomb[:owner]][:kills] += killed_players.length
     end
   end
   
@@ -250,12 +287,61 @@ class Game
     end
   end
   
-  def check_game_over
-    alive_players = @players.select { |_, player| player[:alive] }
+  def process_respawns
+    ready_to_respawn = @respawn_queue.select { |entry| entry[:respawn_tick] <= @tick }
     
-    if alive_players.length <= 1
-      @game_over = true
-      @winner = alive_players.length == 1 ? alive_players.keys.first : nil
+    ready_to_respawn.each do |entry|
+      player_id = entry[:player_id]
+      next unless @players[player_id] # Player still exists
+      
+      # Find random available spawn position
+      spawn_pos = find_random_spawn_position
+      
+      if spawn_pos
+        x, y = spawn_pos
+        @players[player_id][:x] = x
+        @players[player_id][:y] = y
+        @players[player_id][:alive] = true
+        @players[player_id][:bombs_available] = 1
+        @players[player_id][:blast_radius] = BLAST_RADIUS
+        @players[player_id][:speed_boost_turns] = 0
+        
+        @leaderboard[player_id][:current_life_start] = @tick
+        
+        @respawn_queue.delete(entry)
+      end
     end
+  end
+  
+  def can_respawn_at?(x, y)
+    return false unless valid_position?(x, y) && @grid[y][x] == '.'
+    return false if @players.any? { |_, player| player[:x] == x && player[:y] == y && player[:alive] }
+    return false if @bombs.any? { |bomb| bomb[:x] == x && bomb[:y] == y }
+    
+    # Check if position is safe from explosions
+    @bombs.each do |bomb|
+      next if bomb[:timer] > 2 # Only worry about bombs exploding soon
+      explosion_coords = calculate_explosion(bomb[:x], bomb[:y], bomb[:blast_radius])
+      return false if explosion_coords.include?([x, y])
+    end
+    
+    true
+  end
+  
+  def find_random_spawn_position
+    # Get all empty positions on the grid
+    empty_positions = []
+    (0...GRID_SIZE).each do |y|
+      (0...GRID_SIZE).each do |x|
+        if @grid[y][x] == '.' && 
+           !@players.any? { |_, player| player[:x] == x && player[:y] == y && player[:alive] } &&
+           !@bombs.any? { |bomb| bomb[:x] == x && bomb[:y] == y }
+          empty_positions << [x, y]
+        end
+      end
+    end
+    
+    return nil if empty_positions.empty?
+    empty_positions.sample
   end
 end

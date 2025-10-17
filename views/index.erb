@@ -85,13 +85,19 @@
             to { transform: scale(1.1); }
         }
         
-        .players-list {
+        .side-panels {
+            display: flex;
+            flex-direction: column;
+            margin-left: 20px;
+            gap: 20px;
+        }
+        
+        .players-list, .leaderboard {
             background: white;
             padding: 20px;
-            margin-left: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            min-width: 250px;
+            min-width: 300px;
         }
         
         .player-info {
@@ -122,6 +128,33 @@
         
         .status.running { background-color: #d4edda; color: #155724; }
         .status.game-over { background-color: #f8d7da; color: #721c24; }
+        
+        .leaderboard-entry {
+            margin-bottom: 8px;
+            padding: 8px;
+            border-left: 4px solid #ccc;
+            background-color: #f9f9f9;
+            font-size: 14px;
+        }
+        
+        .leaderboard-entry.rank1 { border-color: #FFD700; background-color: #fffbf0; }
+        .leaderboard-entry.rank2 { border-color: #C0C0C0; background-color: #fafafa; }
+        .leaderboard-entry.rank3 { border-color: #CD7F32; background-color: #fdf9f6; }
+        
+        .leaderboard-entry .name {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .leaderboard-entry .stats {
+            font-size: 12px;
+            color: #666;
+            margin-top: 2px;
+        }
+        
+        .leaderboard-entry.dead {
+            opacity: 0.6;
+        }
     </style>
 </head>
 <body>
@@ -143,10 +176,19 @@
                 </div>
             </div>
             
-            <div class="players-list">
-                <h3>Players</h3>
-                <div id="players">
-                    <!-- Players will be populated by JavaScript -->
+            <div class="side-panels">
+                <div class="players-list">
+                    <h3>Players</h3>
+                    <div id="players">
+                        <!-- Players will be populated by JavaScript -->
+                    </div>
+                </div>
+                
+                <div class="leaderboard">
+                    <h3>Leaderboard</h3>
+                    <div id="leaderboard">
+                        <!-- Leaderboard will be populated by JavaScript -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -291,15 +333,52 @@
                 });
         }
         
+        function updateLeaderboard() {
+            fetch('/api/leaderboard')
+                .then(response => response.json())
+                .then(leaderboard => {
+                    const leaderboardElement = document.getElementById('leaderboard');
+                    leaderboardElement.innerHTML = '';
+                    
+                    leaderboard.forEach((player, index) => {
+                        const entry = document.createElement('div');
+                        entry.className = 'leaderboard-entry';
+                        if (index === 0) entry.className += ' rank1';
+                        else if (index === 1) entry.className += ' rank2';
+                        else if (index === 2) entry.className += ' rank3';
+                        if (!player.alive) entry.className += ' dead';
+                        
+                        const status = player.alive ? 
+                            `Alive (${player.current_survival}s)` : 
+                            `Dead (respawning...)`;
+                        
+                        entry.innerHTML = `
+                            <div class="name">#${index + 1} ${player.name}</div>
+                            <div class="stats">
+                                Kills: ${player.kills} | Deaths: ${player.deaths}<br>
+                                Total Survival: ${player.total_survival_time}s | ${status}
+                            </div>
+                        `;
+                        
+                        leaderboardElement.appendChild(entry);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching leaderboard:', error);
+                });
+        }
+        
         // Update every second
         setInterval(() => {
             updateGameDisplay();
             updateClientCount();
+            updateLeaderboard();
         }, 1000);
         
         // Initial load
         updateGameDisplay();
         updateClientCount();
+        updateLeaderboard();
     </script>
 </body>
 </html>

@@ -2,10 +2,11 @@ require 'websocket-client-simple'
 require 'json'
 
 class WebSocketClient
-  attr_reader :player_id, :connected
+  attr_reader :player_id, :connected, :name
 
-  def initialize(url = 'ws://localhost:8080')
+  def initialize(url = 'ws://localhost:8080', name = nil)
     @url = url
+    @name = name || `whoami`.strip
     @connected = false
     @player_id = nil
     @game_state = nil
@@ -14,12 +15,22 @@ class WebSocketClient
 
   def connect
     @ws = WebSocket::Client::Simple.connect(@url)
+    ws = @ws
 
     client = self  # Capture self in closure
 
     @ws.on :open do |event|
-      puts "Connected to game server"
+      puts "Connected to game server as '#{client.name}'"
       client.instance_variable_set(:@connected, true)
+      # Send name to server after a brief delay
+      Thread.new do
+        sleep 0.1
+        connect_message = {
+          type: 'connect',
+          name: client.name
+        }
+        ws.send(JSON.generate(connect_message))
+      end
     end
 
     @ws.on :message do |event|
@@ -66,7 +77,7 @@ class WebSocketClient
   end
 
   private
-  
+
   def handle_message(data)
     begin
       message = JSON.parse(data)
