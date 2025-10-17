@@ -117,25 +117,37 @@ class WebSocketServer
   def process_turn
     return if @game.game_over
     
+    puts "Processing turn #{@game.tick + 1}..."
+    
+    # Process actions for all connected clients
     @clients.each do |ws, client|
-      next unless @game.players[client[:player_id]]&.dig(:alive)
+      player = @game.players[client[:player_id]]
+      next unless player&.dig(:alive)
       
       action = client[:action_received] ? client[:last_action] : 'pass'
       
       if action && action != 'pass'
         success = @game.process_action(client[:player_id], action)
-        unless success
+        if success
+          puts "#{client[:player_id]}: #{action}"
+        else
           puts "Invalid action from #{client[:player_id]}: #{action}"
         end
       end
       
+      # Reset for next turn
       client[:last_action] = nil
       client[:action_received] = false
     end
     
+    # Always tick the game forward
     @game.tick!
+    puts "Tick #{@game.tick} completed"
+    
+    # Send updated state to all clients
     broadcast_game_state
     
+    # Check if game is over
     if @game.game_over
       broadcast({
         type: 'game_over',

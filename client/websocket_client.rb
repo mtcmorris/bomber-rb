@@ -15,19 +15,21 @@ class WebSocketClient
   def connect
     @ws = WebSocket::Client::Simple.connect(@url)
 
+    client = self  # Capture self in closure
+
     @ws.on :open do |event|
       puts "Connected to game server"
-      @connected = true
+      client.instance_variable_set(:@connected, true)
     end
 
     @ws.on :message do |event|
       puts "Received message: #{event.data}"
-      WebSocketClient.handle_message(event.data)
+      client.send(:handle_message, event.data)
     end
 
     @ws.on :close do |event|
       puts "Disconnected from game server"
-      @connected = false
+      client.instance_variable_set(:@connected, false)
     end
 
     @ws.on :error do |event|
@@ -63,7 +65,9 @@ class WebSocketClient
     @connected = false
   end
 
-  def self.handle_message(data)
+  private
+  
+  def handle_message(data)
     begin
       message = JSON.parse(data)
 
