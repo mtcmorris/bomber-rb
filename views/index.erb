@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bomberman Game Server</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .game-info {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .game-grid {
+            display: inline-block;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(15, 30px);
+            gap: 1px;
+            background-color: #333;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        
+        .cell {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            position: relative;
+        }
+        
+        .cell.empty { background-color: #ddd; }
+        .cell.hard-wall { background-color: #333; color: white; }
+        .cell.soft-wall { background-color: #8B4513; color: white; }
+        .cell.powerup-bomb { background-color: #FFD700; color: #333; }
+        .cell.powerup-fire { background-color: #FF4500; color: white; }
+        .cell.powerup-speed { background-color: #00FF00; color: #333; }
+        
+        .player {
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 50%;
+            font-size: 12px;
+        }
+        
+        .player.player2 { background-color: #2196F3; }
+        .player.player3 { background-color: #FF9800; }
+        .player.player4 { background-color: #9C27B0; }
+        .player.dead { 
+            background-color: #666; 
+            opacity: 0.5;
+        }
+        
+        .bomb {
+            background-color: #f44336;
+            color: white;
+            border-radius: 50%;
+            font-size: 10px;
+            animation: pulse 0.5s infinite alternate;
+        }
+        
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+        
+        .players-list {
+            background: white;
+            padding: 20px;
+            margin-left: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 250px;
+        }
+        
+        .player-info {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-left: 4px solid #4CAF50;
+            background-color: #f9f9f9;
+        }
+        
+        .player-info.player2 { border-color: #2196F3; }
+        .player-info.player3 { border-color: #FF9800; }
+        .player-info.player4 { border-color: #9C27B0; }
+        .player-info.dead { 
+            border-color: #666; 
+            opacity: 0.5;
+        }
+        
+        .main-content {
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        
+        .status.running { background-color: #d4edda; color: #155724; }
+        .status.game-over { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bomberman Game Server</h1>
+        
+        <div class="game-info">
+            <h2>Game Status</h2>
+            <div id="game-status" class="status running">Loading...</div>
+            <p><strong>Tick:</strong> <span id="tick">0</span></p>
+            <p><strong>Connected Clients:</strong> <span id="client-count">0</span></p>
+        </div>
+        
+        <div class="main-content">
+            <div class="game-grid">
+                <h3>Game Grid</h3>
+                <div id="grid" class="grid">
+                    <!-- Grid will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <div class="players-list">
+                <h3>Players</h3>
+                <div id="players">
+                    <!-- Players will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let gameState = null;
+        
+        function updateGameDisplay() {
+            fetch('/api/game_state')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById('game-status').textContent = 'Game not running';
+                        document.getElementById('game-status').className = 'status game-over';
+                        return;
+                    }
+                    
+                    gameState = data;
+                    updateGrid();
+                    updatePlayers();
+                    updateStatus();
+                })
+                .catch(error => {
+                    console.error('Error fetching game state:', error);
+                    document.getElementById('game-status').textContent = 'Connection error';
+                    document.getElementById('game-status').className = 'status game-over';
+                });
+        }
+        
+        function updateGrid() {
+            const gridElement = document.getElementById('grid');
+            gridElement.innerHTML = '';
+            
+            const grid = gameState.grid;
+            const players = gameState.players;
+            const bombs = gameState.bombs;
+            
+            for (let y = 0; y < grid.length; y++) {
+                for (let x = 0; x < grid[y].length; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    
+                    const cellValue = grid[y][x];
+                    
+                    // Check for players at this position
+                    const playersHere = Object.entries(players).filter(([id, player]) => 
+                        player.x === x && player.y === y && player.alive
+                    );
+                    
+                    // Check for bombs at this position
+                    const bombHere = bombs.find(bomb => bomb.x === x && bomb.y === y);
+                    
+                    if (playersHere.length > 0) {
+                        const [playerId, player] = playersHere[0];
+                        cell.className += ' player ' + playerId;
+                        if (!player.alive) cell.className += ' dead';
+                        cell.textContent = playerId.replace('player', 'P');
+                    } else if (bombHere) {
+                        cell.className += ' bomb';
+                        cell.textContent = bombHere.ticks_until_explosion;
+                    } else {
+                        switch (cellValue) {
+                            case '#':
+                                cell.className += ' hard-wall';
+                                cell.textContent = '#';
+                                break;
+                            case '+':
+                                cell.className += ' soft-wall';
+                                cell.textContent = '+';
+                                break;
+                            case 'B':
+                                cell.className += ' powerup-bomb';
+                                cell.textContent = 'B';
+                                break;
+                            case 'F':
+                                cell.className += ' powerup-fire';
+                                cell.textContent = 'F';
+                                break;
+                            case 'S':
+                                cell.className += ' powerup-speed';
+                                cell.textContent = 'S';
+                                break;
+                            default:
+                                cell.className += ' empty';
+                                break;
+                        }
+                    }
+                    
+                    gridElement.appendChild(cell);
+                }
+            }
+        }
+        
+        function updatePlayers() {
+            const playersElement = document.getElementById('players');
+            playersElement.innerHTML = '';
+            
+            Object.entries(gameState.players).forEach(([playerId, player]) => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'player-info ' + playerId;
+                if (!player.alive) playerDiv.className += ' dead';
+                
+                playerDiv.innerHTML = `
+                    <strong>${playerId}</strong><br>
+                    Position: (${player.x}, ${player.y})<br>
+                    Status: ${player.alive ? 'Alive' : 'Dead'}<br>
+                    Bombs: ${player.bombs_available}<br>
+                    Blast Radius: ${player.blast_radius}<br>
+                    Speed Boost: ${player.speed_boost_turns > 0 ? player.speed_boost_turns + ' turns' : 'None'}
+                `;
+                
+                playersElement.appendChild(playerDiv);
+            });
+        }
+        
+        function updateStatus() {
+            document.getElementById('tick').textContent = gameState.tick;
+            
+            const statusElement = document.getElementById('game-status');
+            if (gameState.game_over) {
+                if (gameState.winner) {
+                    statusElement.textContent = `Game Over - Winner: ${gameState.winner}`;
+                } else {
+                    statusElement.textContent = 'Game Over - Draw';
+                }
+                statusElement.className = 'status game-over';
+            } else {
+                statusElement.textContent = 'Game Running';
+                statusElement.className = 'status running';
+            }
+        }
+        
+        function updateClientCount() {
+            fetch('/api/clients')
+                .then(response => response.json())
+                .then(clients => {
+                    document.getElementById('client-count').textContent = clients.length;
+                })
+                .catch(error => {
+                    console.error('Error fetching client count:', error);
+                });
+        }
+        
+        // Update every second
+        setInterval(() => {
+            updateGameDisplay();
+            updateClientCount();
+        }, 1000);
+        
+        // Initial load
+        updateGameDisplay();
+        updateClientCount();
+    </script>
+</body>
+</html>
