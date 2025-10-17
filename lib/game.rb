@@ -194,15 +194,15 @@ class Game
     @bombs.each { |bomb| bomb[:timer] -= 1 }
     
     exploding_bombs = @bombs.select { |bomb| bomb[:timer] <= 0 }
-    exploding_bombs.each { |bomb| explode_bomb(bomb) }
+    exploding_bombs.each do |bomb| 
+      explode_bomb(bomb)
+      # Give bomb back to owner when it explodes
+      if @players[bomb[:owner]]
+        @players[bomb[:owner]][:bombs_available] += 1
+      end
+    end
     
     @bombs.reject! { |bomb| bomb[:timer] <= 0 }
-    
-    @players.each do |player_id, player|
-      active_bombs = @bombs.count { |bomb| bomb[:owner] == player_id }
-      total_bombs = player[:bombs_available] + active_bombs
-      player[:bombs_available] = total_bombs - active_bombs
-    end
   end
   
   def explode_bomb(bomb)
