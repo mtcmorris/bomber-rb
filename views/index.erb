@@ -80,9 +80,21 @@
             animation: pulse 0.5s infinite alternate;
         }
         
+        .explosion {
+            background-color: #FF6B35;
+            color: white;
+            font-size: 16px;
+            animation: explode 0.5s infinite alternate;
+        }
+        
         @keyframes pulse {
             from { transform: scale(1); }
             to { transform: scale(1.1); }
+        }
+        
+        @keyframes explode {
+            from { transform: scale(1); background-color: #FF6B35; }
+            to { transform: scale(1.2); background-color: #FF4500; }
         }
         
         .side-panels {
@@ -226,6 +238,7 @@
             const grid = gameState.grid;
             const players = gameState.players;
             const bombs = gameState.bombs;
+            const explosions = gameState.explosions || [];
             
             for (let y = 0; y < grid.length; y++) {
                 for (let x = 0; x < grid[y].length; x++) {
@@ -233,6 +246,9 @@
                     cell.className = 'cell';
                     
                     const cellValue = grid[y][x];
+                    
+                    // Check for explosions at this position
+                    const explosionHere = explosions.find(explosion => explosion.x === x && explosion.y === y);
                     
                     // Check for players at this position
                     const playersHere = Object.entries(players).filter(([id, player]) => 
@@ -242,7 +258,10 @@
                     // Check for bombs at this position
                     const bombHere = bombs.find(bomb => bomb.x === x && bomb.y === y);
                     
-                    if (playersHere.length > 0) {
+                    if (explosionHere) {
+                        cell.className += ' explosion';
+                        cell.textContent = '💥';
+                    } else if (playersHere.length > 0) {
                         const [playerId, player] = playersHere[0];
                         cell.className += ' player ' + playerId;
                         if (!player.alive) cell.className += ' dead';
@@ -355,8 +374,9 @@
                         entry.innerHTML = `
                             <div class="name">#${index + 1} ${player.name}</div>
                             <div class="stats">
-                                Kills: ${player.kills} | Deaths: ${player.deaths}<br>
-                                Total Survival: ${player.total_survival_time}s | ${status}
+                                <strong>Best:</strong> ${player.best_kills} kills, ${player.best_survival}s alive<br>
+                                <strong>Current:</strong> ${player.current_kills} kills, ${status}<br>
+                                <strong>Total:</strong> ${player.kills} kills, ${player.deaths} deaths
                             </div>
                         `;
                         

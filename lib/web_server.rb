@@ -80,9 +80,12 @@ class WebServer < Sinatra::Base
           deaths: stats[:deaths],
           total_survival_time: stats[:total_survival_time] + current_survival,
           current_survival: current_survival,
+          current_kills: stats[:current_life_kills],
+          best_kills: stats[:best_kills_in_life],
+          best_survival: stats[:best_survival_time],
           alive: @@game_server.game.players[player_id]&.dig(:alive) || false
         }
-      end.sort_by { |p| [-p[:kills], -p[:total_survival_time]] }
+      end.sort_by { |p| [-p[:best_kills], -p[:best_survival]] }
       
       leaderboard.to_json
     else
