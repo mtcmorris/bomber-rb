@@ -1,5 +1,6 @@
 require 'sinatra/base'
 require 'json'
+require 'socket'
 
 class WebServer < Sinatra::Base
   set :public_folder, File.dirname(__FILE__) + '/../public'
@@ -92,5 +93,19 @@ class WebServer < Sinatra::Base
     else
       [].to_json
     end
+  end
+  
+  get '/api/server_info' do
+    content_type :json
+    
+    # Get local IP address
+    ip_address = Socket.ip_address_list.find { |ai| ai.ipv4? && !ai.ipv4_loopback? }&.ip_address || 'localhost'
+    websocket_port = @@game_server ? @@game_server.port : 8080
+    
+    {
+      websocket_url: "ws://#{ip_address}:#{websocket_port}",
+      ip_address: ip_address,
+      websocket_port: websocket_port
+    }.to_json
   end
 end
