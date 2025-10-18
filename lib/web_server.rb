@@ -85,6 +85,10 @@ class WebServer < Sinatra::Base
           best_survival = current_survival
         end
 
+        if stats[:current_life_kills] == stats[:best_kills_in_life] && current_survival > stats[:best_survival_time]
+          best_survival = current_survival
+        end
+
         {
           player_id: player_id,
           name: player_id.split('_')[0..-2].join('_'), # Remove the _N suffix
