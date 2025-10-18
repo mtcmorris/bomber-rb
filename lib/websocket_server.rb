@@ -66,15 +66,28 @@ class WebSocketServer
   private
   
   def handle_open(ws, handshake)
-    # Extract IP address from handshake
-    ip_address = handshake.headers['X-Forwarded-For']&.split(',')&.first&.strip ||
-                 handshake.origin&.match(/(\d+\.\d+\.\d+\.\d+)/)&.to_s ||
-                 'unknown'
+    # Extract IP address from the socket's peer address
+    ip_address = nil
+    begin
+      # Get the actual socket peer address
+      peername = ws.get_peername
+      if peername
+        # Socket.unpack_sockaddr_in returns [port, ip_address]
+        port, ip = Socket.unpack_sockaddr_in(peername)
+        ip_address = ip
+      end
+    rescue => e
+      puts "Could not extract IP address: #{e.message}"
+    end
+
+    # Fallback to checking headers if direct socket method fails
+    ip_address ||= handshake.headers['X-Forwarded-For']&.split(',')&.first&.strip
+    ip_address ||= 'unknown'
 
     puts "Client connected from IP: #{ip_address} (#{ws.object_id})"
 
     # Check if this IP already has a connection
-    if @ip_connections[ip_address]
+    if @ip_connections[ip_address] && @ip_connections[ip_address] != ws
       puts "Rejecting connection: IP #{ip_address} already has a bot connected"
       ws.send(JSON.generate({
         type: 'error',
