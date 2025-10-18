@@ -5,24 +5,24 @@ require 'socket'
 class WebServer < Sinatra::Base
   set :public_folder, File.dirname(__FILE__) + '/../public'
   set :views, File.dirname(__FILE__) + '/../views'
-  
+
   @@game_server = nil
-  
+
   def self.game_server=(server)
     @@game_server = server
   end
-  
+
   def self.game_server
     @@game_server
   end
-  
+
   get '/' do
     erb :index
   end
-  
+
   get '/api/game_state' do
     content_type :json
-    
+
     if @@game_server && @@game_server.game
       game = @@game_server.game
       state = {
@@ -47,10 +47,10 @@ class WebServer < Sinatra::Base
       { error: 'Game not running' }.to_json
     end
   end
-  
+
   get '/api/clients' do
     content_type :json
-    
+
     if @@game_server
       clients = @@game_server.clients.map do |connection, client|
         {
@@ -64,17 +64,27 @@ class WebServer < Sinatra::Base
       [].to_json
     end
   end
-  
+
   get '/api/leaderboard' do
     content_type :json
-    
+
     if @@game_server && @@game_server.game
       leaderboard = @@game_server.game.leaderboard.map do |player_id, stats|
         current_survival = 0
         if @@game_server.game.players[player_id]&.dig(:alive)
           current_survival = @@game_server.game.tick - stats[:current_life_start]
         end
-        
+
+        # Determine which life had the best kills and use stats from that life
+        best_kills = stats[:best_kills_in_life]
+        best_survival = stats[:best_survival_time]
+
+        # If current life has more kills, use current life stats for both
+        if stats[:current_life_kills] > stats[:best_kills_in_life]
+          best_kills = stats[:current_life_kills]
+          best_survival = current_survival
+        end
+
         {
           player_id: player_id,
           name: player_id.split('_')[0..-2].join('_'), # Remove the _N suffix
@@ -83,25 +93,25 @@ class WebServer < Sinatra::Base
           total_survival_time: stats[:total_survival_time] + current_survival,
           current_survival: current_survival,
           current_kills: stats[:current_life_kills],
-          best_kills: stats[:best_kills_in_life],
-          best_survival: stats[:best_survival_time],
+          best_kills: best_kills,
+          best_survival: best_survival,
           alive: @@game_server.game.players[player_id]&.dig(:alive) || false
         }
       end.sort_by { |p| [-p[:best_kills], -p[:best_survival]] }
-      
+
       leaderboard.to_json
     else
       [].to_json
     end
   end
-  
+
   get '/api/server_info' do
     content_type :json
-    
+
     # Get local IP address
     ip_address = Socket.ip_address_list.find { |ai| ai.ipv4? && !ai.ipv4_loopback? }&.ip_address || 'localhost'
     websocket_port = @@game_server ? @@game_server.port : 8080
-    
+
     {
       websocket_url: "ws://#{ip_address}:#{websocket_port}",
       ip_address: ip_address,

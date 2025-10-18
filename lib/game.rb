@@ -226,6 +226,10 @@ class Game
           player[:alive] = false
           killed_players << player_id
 
+          # Reset powerups on death
+          player[:bombs_available] = 1
+          player[:blast_radius] = BLAST_RADIUS
+
           # Update leaderboard for killed player
           survival_time = @tick - @leaderboard[player_id][:current_life_start]
           @leaderboard[player_id][:deaths] += 1
