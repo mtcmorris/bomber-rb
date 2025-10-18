@@ -1,7 +1,6 @@
 #!/usr/bin/env ruby
 
 require 'eventmachine'
-require 'thin'
 require 'socket'
 require_relative 'lib/websocket_server'
 require_relative 'lib/web_server'
