@@ -12,6 +12,7 @@ class WebSocketServer
     @clients = {}
     @game_timer = nil
     @turn_timeout = 1.0
+    @ip_connections = {} # Track connections per IP address
   end
   
   def start
@@ -65,14 +66,34 @@ class WebSocketServer
   private
   
   def handle_open(ws, handshake)
-    puts "Client connected: #{ws.object_id}"
-    
+    # Extract IP address from handshake
+    ip_address = handshake.headers['X-Forwarded-For']&.split(',')&.first&.strip ||
+                 handshake.origin&.match(/(\d+\.\d+\.\d+\.\d+)/)&.to_s ||
+                 'unknown'
+
+    puts "Client connected from IP: #{ip_address} (#{ws.object_id})"
+
+    # Check if this IP already has a connection
+    if @ip_connections[ip_address]
+      puts "Rejecting connection: IP #{ip_address} already has a bot connected"
+      ws.send(JSON.generate({
+        type: 'error',
+        message: 'Only one bot per IP address is allowed. Disconnect your other bot first.'
+      }))
+      ws.close_connection_after_writing
+      return
+    end
+
+    # Track this IP
+    @ip_connections[ip_address] = ws
+
     @clients[ws] = {
       player_id: nil,
       name: nil,
       last_action: nil,
       action_received: false,
-      waiting_for_name: true
+      waiting_for_name: true,
+      ip_address: ip_address
     }
   end
   
@@ -124,10 +145,18 @@ class WebSocketServer
   
   def handle_close(ws)
     client = @clients.delete(ws)
-    if client && client[:player_id]
-      puts "Player '#{client[:name]}' (#{client[:player_id]}) disconnected"
-      @game.players.delete(client[:player_id])
-      broadcast_game_state
+    if client
+      # Remove IP tracking
+      if client[:ip_address]
+        @ip_connections.delete(client[:ip_address])
+        puts "Freed IP slot: #{client[:ip_address]}"
+      end
+
+      if client[:player_id]
+        puts "Player '#{client[:name]}' (#{client[:player_id]}) disconnected"
+        @game.players.delete(client[:player_id])
+        broadcast_game_state
+      end
     end
   end
   

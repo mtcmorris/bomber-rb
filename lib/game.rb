@@ -18,6 +18,7 @@ class Game
     @leaderboard = {}
     @respawn_queue = []
     @explosions = []
+    @powerup_respawn_queue = []
   end
 
   def add_player(id, x = nil, y = nil)
@@ -82,6 +83,7 @@ class Game
     check_powerup_collection
     process_respawns
     process_explosions
+    process_powerup_respawns
 
     @tick
   end
@@ -302,9 +304,13 @@ class Game
       when 'B'
         player[:bombs_available] += 1
         @grid[y][x] = '.'
+        # Queue powerup for respawn in 15-25 seconds
+        queue_powerup_respawn(x, y, 'B', rand(15..25))
       when 'F'
         player[:blast_radius] += 1
         @grid[y][x] = '.'
+        # Queue powerup for respawn in 15-25 seconds
+        queue_powerup_respawn(x, y, 'F', rand(15..25))
       end
     end
   end
@@ -352,6 +358,31 @@ class Game
 
   def process_explosions
     @explosions.reject! { |explosion| explosion[:expires_at] <= @tick }
+  end
+
+  def queue_powerup_respawn(x, y, type, delay_ticks)
+    @powerup_respawn_queue << {
+      x: x,
+      y: y,
+      type: type,
+      respawn_tick: @tick + delay_ticks
+    }
+  end
+
+  def process_powerup_respawns
+    ready_to_respawn = @powerup_respawn_queue.select { |entry| entry[:respawn_tick] <= @tick }
+
+    ready_to_respawn.each do |entry|
+      x, y = entry[:x], entry[:y]
+
+      # Only respawn if the cell is empty
+      if @grid[y][x] == '.'
+        @grid[y][x] = entry[:type]
+        puts "Powerup '#{entry[:type]}' respawned at (#{x}, #{y})"
+      end
+
+      @powerup_respawn_queue.delete(entry)
+    end
   end
 
   def find_random_spawn_position
