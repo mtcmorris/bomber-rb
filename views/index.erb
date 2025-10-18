@@ -55,6 +55,7 @@
         .cell.soft-wall { background-color: #8B4513; color: #ababab; background-image: url('/images/soft-wall.png'); }
         .cell.powerup-bomb { background-color: #FFD700; color: #bdbe02; background-image: url('/images/powerup-bomb.png'); }
         .cell.powerup-fire { background-color: #FF4500; color: #bdbe02; background-image: url('/images/powerup-fire.png'); }
+        .cell.powerup-death-star { background-color: #000000; color: #ffffff; background-image: url('/images/powerup-death-star.png'); }
 
         .player {
             background-color: #4CAF50;
@@ -254,6 +255,9 @@
                                 break;
                             case 'F':
                                 cell.className += ' powerup-fire';
+                                break;
+                            case 'D':
+                                cell.className += ' powerup-death-star';
                                 break;
                             default:
                                 cell.className += ' empty';

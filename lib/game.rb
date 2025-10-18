@@ -4,6 +4,7 @@ class Game
   GRID_SIZE = 15
   BOMB_TIMER = 4
   BLAST_RADIUS = 2
+  DEATH_STAR_SPAWN_INTERVAL = 120
 
   attr_reader :grid, :players, :bombs, :tick, :powerups, :game_over, :winner, :leaderboard, :explosions
 
@@ -19,6 +20,7 @@ class Game
     @respawn_queue = []
     @explosions = []
     @powerup_respawn_queue = []
+    @last_death_star_spawn = 0
   end
 
   def add_player(id, x = nil, y = nil)
@@ -84,6 +86,7 @@ class Game
     process_respawns
     process_explosions
     process_powerup_respawns
+    spawn_death_star_if_needed
 
     @tick
   end
@@ -315,6 +318,11 @@ class Game
         @grid[y][x] = '.'
         # Queue powerup for respawn in 15-25 seconds
         queue_powerup_respawn(x, y, 'F', rand(15..25))
+      when 'D'
+        # Death star kills all other players
+        kill_all_other_players(player_id)
+        @grid[y][x] = '.'
+        puts "Player #{player_id} activated death-star!"
       end
     end
   end
@@ -404,5 +412,69 @@ class Game
 
     return nil if empty_positions.empty?
     empty_positions.sample
+  end
+
+  def spawn_death_star_if_needed
+    # Spawn death-star every DEATH_STAR_SPAWN_INTERVAL (120) ticks, but only if one doesn't already exist
+    if @tick - @last_death_star_spawn >= DEATH_STAR_SPAWN_INTERVAL
+      # Check if a death-star already exists on the grid
+      death_star_exists = @grid.any? { |row| row.include?('D') }
+
+      if !death_star_exists
+        spawn_pos = find_random_spawn_position
+        if spawn_pos
+          x, y = spawn_pos
+          @grid[y][x] = 'D'
+          @last_death_star_spawn = @tick
+          puts "Death-star spawned at (#{x}, #{y}) on tick #{@tick}"
+        end
+      else
+        puts "Death-star already exists on the grid, skipping spawn at tick #{@tick}"
+      end
+    end
+  end
+
+  def kill_all_other_players(survivor_id)
+    killed_count = 0
+    @players.each do |player_id, player|
+      next if player_id == survivor_id
+      next unless player[:alive]
+
+      player[:alive] = false
+      killed_count += 1
+
+      # Reset powerups on death
+      player[:bombs_available] = 1
+      player[:blast_radius] = BLAST_RADIUS
+
+      # Update leaderboard for killed player
+      survival_time = @tick - @leaderboard[player_id][:current_life_start]
+      @leaderboard[player_id][:deaths] += 1
+      @leaderboard[player_id][:total_survival_time] += survival_time
+
+      # Update best stats
+      if @leaderboard[player_id][:current_life_kills] > @leaderboard[player_id][:best_kills_in_life]
+        @leaderboard[player_id][:best_kills_in_life] = @leaderboard[player_id][:current_life_kills]
+      end
+
+      if survival_time > @leaderboard[player_id][:best_survival_time]
+        @leaderboard[player_id][:best_survival_time] = survival_time
+      end
+
+      # Reset current life stats
+      @leaderboard[player_id][:current_life_kills] = 0
+
+      # Queue for respawn in 5 seconds
+      @respawn_queue << {
+        player_id: player_id,
+        respawn_tick: @tick + 5
+      }
+    end
+
+    # Award kills to the survivor
+    if killed_count > 0 && @leaderboard[survivor_id]
+      @leaderboard[survivor_id][:kills] += killed_count
+      @leaderboard[survivor_id][:current_life_kills] += killed_count
+    end
   end
 end
