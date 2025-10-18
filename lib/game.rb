@@ -197,6 +197,10 @@ class Game
   end
 
   def explode_bomb(bomb)
+    # Mark this bomb as exploding to prevent infinite recursion
+    return if bomb[:exploding]
+    bomb[:exploding] = true
+
     explosion_coords = calculate_explosion(bomb[:x], bomb[:y], bomb[:blast_radius])
     killed_players = []
 
@@ -245,10 +249,10 @@ class Game
         end
       end
 
-      chain_bombs = @bombs.select { |other_bomb| other_bomb[:x] == x && other_bomb[:y] == y }
+      chain_bombs = @bombs.select { |other_bomb| other_bomb[:x] == x && other_bomb[:y] == y && !other_bomb[:exploding] }
       chain_bombs.each do |chain_bomb|
-        explode_bomb(chain_bomb) if chain_bomb[:timer] > 0
         chain_bomb[:timer] = 0
+        explode_bomb(chain_bomb)
       end
     end
 
