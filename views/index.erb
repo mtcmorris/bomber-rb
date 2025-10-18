@@ -50,11 +50,11 @@
             position: relative;
         }
 
-        .cell.empty { background-color: #ddd; }
-        .cell.hard-wall { background-color: #333; color: white; }
-        .cell.soft-wall { background-color: #8B4513; color: white; }
-        .cell.powerup-bomb { background-color: #FFD700; color: #333; }
-        .cell.powerup-fire { background-color: #FF4500; color: white; }
+        .cell.empty { background-color: #009400; }
+        .cell.hard-wall { background-color: #333; color: #ababab; background-image: url('/images/hard-wall.png'); }
+        .cell.soft-wall { background-color: #8B4513; color: #ababab; background-image: url('/images/soft-wall.png'); }
+        .cell.powerup-bomb { background-color: #FFD700; color: #bdbe02; background-image: url('/images/powerup-bomb.png'); }
+        .cell.powerup-fire { background-color: #FF4500; color: #bdbe02; background-image: url('/images/powerup-fire.png'); }
 
         .player {
             background-color: #4CAF50;
@@ -245,19 +245,15 @@
                         switch (cellValue) {
                             case '#':
                                 cell.className += ' hard-wall';
-                                cell.textContent = '#';
                                 break;
                             case '+':
                                 cell.className += ' soft-wall';
-                                cell.textContent = '+';
                                 break;
                             case 'B':
                                 cell.className += ' powerup-bomb';
-                                cell.textContent = 'B';
                                 break;
                             case 'F':
                                 cell.className += ' powerup-fire';
-                                cell.textContent = 'F';
                                 break;
                             default:
                                 cell.className += ' empty';
