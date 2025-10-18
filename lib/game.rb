@@ -2,7 +2,7 @@ require 'json'
 
 class Game
   GRID_SIZE = 15
-  BOMB_TIMER = 4
+  BOMB_TIMER = 5
   BLAST_RADIUS = 2
   DEATH_STAR_SPAWN_INTERVAL = 120
 
