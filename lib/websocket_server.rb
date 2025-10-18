@@ -15,16 +15,40 @@ class WebSocketServer
   end
   
   def start
-    EventMachine.run do
-      EventMachine::WebSocket.run(host: '0.0.0.0', port: @port) do |ws|
-        ws.onopen { |handshake| handle_open(ws, handshake) }
-        ws.onmessage { |message| handle_message(ws, message) }
-        ws.onclose { handle_close(ws) }
-        ws.onerror { |error| handle_error(ws, error) }
+    begin
+      puts "Attempting to start WebSocket server on port #{@port}..."
+      
+      EventMachine.run do
+        begin
+          EventMachine::WebSocket.run(host: '0.0.0.0', port: @port) do |ws|
+            ws.onopen { |handshake| handle_open(ws, handshake) }
+            ws.onmessage { |message| handle_message(ws, message) }
+            ws.onclose { handle_close(ws) }
+            ws.onerror { |error| handle_error(ws, error) }
+          end
+          
+          puts "WebSocket server successfully listening on port #{@port}"
+          start_game_loop
+          
+        rescue => e
+          puts "ERROR: Failed to start WebSocket server: #{e.message}"
+          puts "This usually means port #{@port} is already in use."
+          puts "Try stopping any other servers running on port #{@port} or use a different port."
+          EventMachine.stop
+          exit 1
+        end
+        
+        # Handle EventMachine errors
+        EventMachine.error_handler do |e|
+          puts "EventMachine error: #{e.message}"
+          puts e.backtrace.join("\n")
+        end
       end
       
-      puts "WebSocket server listening on port #{@port}"
-      start_game_loop
+    rescue => e
+      puts "FATAL ERROR: Could not start WebSocket server: #{e.message}"
+      puts e.backtrace.join("\n")
+      exit 1
     end
   end
   
