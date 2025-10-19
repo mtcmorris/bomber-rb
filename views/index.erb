@@ -73,11 +73,11 @@
         }
 
         .bomb {
-            background-color: #f44336;
             color: white;
             border-radius: 50%;
             font-size: 10px;
             animation: pulse 0.5s infinite alternate;
+            /* Background color is set dynamically based on timer */
         }
 
         .explosion {
@@ -242,6 +242,21 @@
                     } else if (bombHere) {
                         cell.className += ' bomb';
                         cell.textContent = bombHere.ticks_until_explosion;
+
+                        // Fade from black (15 ticks) to red (0 ticks)
+                        const maxTimer = 15;
+                        const minTimer = 0;
+                        const timer = bombHere.ticks_until_explosion;
+
+                        // Calculate interpolation factor (0 = red, 1 = black)
+                        const factor = Math.max(0, Math.min(1, (timer - minTimer) / (maxTimer - minTimer)));
+
+                        // Interpolate from red (#f44336) to black (#000000)
+                        const red = Math.round(244 + (0 - 244) * factor);
+                        const green = Math.round(67 + (0 - 67) * factor);
+                        const blue = Math.round(54 + (0 - 54) * factor);
+
+                        cell.style.backgroundColor = `rgb(${red}, ${green}, ${blue})`;
                     } else {
                         switch (cellValue) {
                             case '#':

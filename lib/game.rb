@@ -69,7 +69,10 @@ class Game
       direction = parts[1]
       move_player(player_id, direction)
     when 'bomb'
-      place_bomb(player_id)
+      timer = parts[1] ? parts[1].to_i : BOMB_TIMER
+      # Clamp timer between 5 and 15 ticks
+      timer = [[timer, 5].max, 15].min
+      place_bomb(player_id, timer)
     when 'pass'
       true
     else
@@ -166,7 +169,7 @@ class Game
     end
   end
 
-  def place_bomb(player_id)
+  def place_bomb(player_id, timer = BOMB_TIMER)
     player = @players[player_id]
     return false if player[:bombs_available] <= 0
 
@@ -177,7 +180,7 @@ class Game
       x: player[:x],
       y: player[:y],
       owner: player_id,
-      timer: BOMB_TIMER,
+      timer: timer,
       blast_radius: player[:blast_radius]
     }
 
