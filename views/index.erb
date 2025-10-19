@@ -345,12 +345,12 @@
                 });
         }
 
-        // Update every second
+        // Update every 500ms to match default game tick rate
         setInterval(() => {
             updateGameDisplay();
             updateClientCount();
             updateLeaderboard();
-        }, 1000);
+        }, 500);
 
         // Initial load
         updateGameDisplay();

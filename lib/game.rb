@@ -134,11 +134,20 @@ class Game
     x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE
   end
 
-  def can_move_to?(x, y)
+  def can_move_to?(x, y, exclude_player_id = nil)
     return false unless valid_position?(x, y)
     return false if @grid[y][x] == '#' || @grid[y][x] == '+'
 
-    @bombs.none? { |bomb| bomb[:x] == x && bomb[:y] == y }
+    # Check for bombs
+    return false if @bombs.any? { |bomb| bomb[:x] == x && bomb[:y] == y }
+
+    # Check for other players (collision detection)
+    @players.each do |pid, player|
+      next if pid == exclude_player_id # Ignore the moving player itself
+      return false if player[:alive] && player[:x] == x && player[:y] == y
+    end
+
+    true
   end
 
   def move_player(player_id, direction)
@@ -147,7 +156,8 @@ class Game
     new_x = player[:x] + dx
     new_y = player[:y] + dy
 
-    if can_move_to?(new_x, new_y)
+    # Check if destination is valid (excluding current player to avoid self-collision check)
+    if can_move_to?(new_x, new_y, player_id)
       player[:x] = new_x
       player[:y] = new_y
       true
@@ -201,10 +211,14 @@ class Game
     @bombs.reject! { |bomb| bomb[:timer] <= 0 }
   end
 
-  def explode_bomb(bomb)
+  def explode_bomb(bomb, chain_owners = [])
     # Mark this bomb as exploding to prevent infinite recursion
-    return if bomb[:exploding]
+    return [] if bomb[:exploding]
     bomb[:exploding] = true
+
+    # Track all owners in this bomb chain
+    chain_owners = chain_owners.dup
+    chain_owners << bomb[:owner] unless chain_owners.include?(bomb[:owner])
 
     explosion_coords = calculate_explosion(bomb[:x], bomb[:y], bomb[:blast_radius])
     killed_players = []
@@ -261,16 +275,28 @@ class Game
       chain_bombs = @bombs.select { |other_bomb| other_bomb[:x] == x && other_bomb[:y] == y && !other_bomb[:exploding] }
       chain_bombs.each do |chain_bomb|
         chain_bomb[:timer] = 0
-        explode_bomb(chain_bomb)
+        # Pass chain_owners to track all participants in the bomb chain
+        chain_killed = explode_bomb(chain_bomb, chain_owners)
+        killed_players.concat(chain_killed)
       end
     end
 
-    # Award kill to bomb owner (don't award points for self-kills)
-    if killed_players.length > 0 && @leaderboard[bomb[:owner]]
-      non_self_kills = killed_players.reject { |killed_id| killed_id == bomb[:owner] }
-      @leaderboard[bomb[:owner]][:kills] += non_self_kills.length
-      @leaderboard[bomb[:owner]][:current_life_kills] += non_self_kills.length
+    # Award kill to ALL bomb owners in the chain (don't award points for self-kills)
+    if killed_players.length > 0
+      chain_owners.uniq.each do |owner|
+        next unless @leaderboard[owner]
+
+        non_self_kills = killed_players.reject { |killed_id| killed_id == owner }
+        if non_self_kills.length > 0
+          @leaderboard[owner][:kills] += non_self_kills.length
+          @leaderboard[owner][:current_life_kills] += non_self_kills.length
+          puts "💥 #{owner} gets #{non_self_kills.length} kill(s) from bomb chain!"
+        end
+      end
     end
+
+    # Return killed players for chain tracking
+    killed_players
   end
 
   def calculate_explosion(x, y, radius)

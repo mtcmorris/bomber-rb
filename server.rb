@@ -6,9 +6,10 @@ require_relative 'lib/websocket_server'
 require_relative 'lib/web_server'
 
 class GameServer
-  def initialize(websocket_port = 8080, web_port = 4567)
+  def initialize(websocket_port = 8080, web_port = 4567, tick_interval = 0.5)
     @websocket_port = websocket_port
     @web_port = web_port
+    @tick_interval = tick_interval
     @websocket_server = nil
     @web_server = nil
   end
@@ -25,7 +26,7 @@ class GameServer
     check_port_availability(@web_port, "Web")
     
     # Start the WebSocket server first
-    @websocket_server = WebSocketServer.new(@websocket_port)
+    @websocket_server = WebSocketServer.new(@websocket_port, @tick_interval)
     
     # Start the web server in a separate thread
     web_thread = Thread.new do
@@ -83,23 +84,51 @@ end
 if __FILE__ == $0
   if ARGV.include?('--help') || ARGV.include?('-h')
     puts "Bomberman Game Server"
-    puts "Usage: ruby server.rb [websocket_port] [web_port]"
+    puts "Usage: ruby server.rb [websocket_port] [web_port] [options]"
     puts ""
-    puts "Default ports:"
-    puts "  WebSocket: 8080"
-    puts "  Web:       4567"
+    puts "Default settings:"
+    puts "  WebSocket port: 8080"
+    puts "  Web port:       4567"
+    puts "  Tick interval:  0.5s (500ms)"
+    puts ""
+    puts "Options:"
+    puts "  --tick SECONDS  Set tick interval in seconds (default: 0.5)"
     puts ""
     puts "Examples:"
-    puts "  ruby server.rb              # Use default ports"
-    puts "  ruby server.rb 8081         # WebSocket on 8081, Web on 4567"
-    puts "  ruby server.rb 8081 4568    # WebSocket on 8081, Web on 4568"
+    puts "  ruby server.rb                    # Use default settings"
+    puts "  ruby server.rb 8081               # WebSocket on 8081, Web on 4567"
+    puts "  ruby server.rb 8081 4568          # Custom ports"
+    puts "  ruby server.rb --tick 1.0         # 1 second per tick"
+    puts "  ruby server.rb 8080 4567 --tick 0.25  # 250ms per tick (fast)"
     exit 0
   end
   
   begin
-    websocket_port = ARGV[0]&.to_i || 8080
-    web_port = ARGV[1]&.to_i || 4567
-    
+    # Parse arguments
+    websocket_port = 8080
+    web_port = 4567
+    tick_interval = 0.5
+
+    # Process arguments
+    i = 0
+    while i < ARGV.length
+      case ARGV[i]
+      when '--tick'
+        i += 1
+        tick_interval = ARGV[i].to_f if i < ARGV.length
+      else
+        # Assume it's a port number
+        if ARGV[i].to_i > 0
+          if websocket_port == 8080
+            websocket_port = ARGV[i].to_i
+          elsif web_port == 4567
+            web_port = ARGV[i].to_i
+          end
+        end
+      end
+      i += 1
+    end
+
     # Validate port numbers
     [websocket_port, web_port].each do |port|
       if port < 1024 || port > 65535
@@ -107,13 +136,19 @@ if __FILE__ == $0
         exit 1
       end
     end
-    
+
     if websocket_port == web_port
       puts "ERROR: WebSocket and Web ports cannot be the same!"
       exit 1
     end
-    
-    server = GameServer.new(websocket_port, web_port)
+
+    # Validate tick interval
+    if tick_interval <= 0 || tick_interval > 10
+      puts "ERROR: Tick interval must be between 0.001 and 10 seconds."
+      exit 1
+    end
+
+    server = GameServer.new(websocket_port, web_port, tick_interval)
     server.start
     
   rescue Interrupt

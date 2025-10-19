@@ -5,13 +5,13 @@ require_relative 'game'
 
 class WebSocketServer
   attr_reader :game, :clients, :port
-  
-  def initialize(port = 8080)
+
+  def initialize(port = 8080, tick_interval = 0.5)
     @port = port
+    @tick_interval = tick_interval
     @game = Game.new
     @clients = {}
     @game_timer = nil
-    @turn_timeout = 1.0
     @ip_connections = {} # Track connections per IP address
   end
   
@@ -186,7 +186,8 @@ class WebSocketServer
   end
   
   def start_game_loop
-    @game_timer = EventMachine::PeriodicTimer.new(1.0) do
+    puts "Game loop starting with tick interval: #{@tick_interval}s"
+    @game_timer = EventMachine::PeriodicTimer.new(@tick_interval) do
       process_turn
     end
   end
